@@ -3,7 +3,10 @@ from fastmcp import FastMCP
 import os
 import sqlite3
 
-db_path=os.path.join(os.path.dirname(__file__),"expense.db")
+# Use an environment variable for the DB path if provided,
+# otherwise default to a local file. This is crucial for deployments
+# where the code directory might be read-only.
+db_path = os.environ.get("DB_PATH", os.path.join(os.path.dirname(__file__), "expense.db"))
 
 mcp=FastMCP("ExpenceTracker")
 
@@ -123,35 +126,37 @@ def delete_expense(id):
         }
         
 @mcp.tool
-def list_expenses(start_data,end_date):
+def list_expenses(start_date, end_date):
     """List out all the expenses within the range user has asked for """
     with sqlite3.connect(db_path) as c:
-        c=c.execute(
+        curr = c.execute(
             """
-            SELECT id,date,amount,category,subcategory,note FROM expense WHERE date BETWEEBN ? AND ? ORDER BY id ASC
-            """,(start_data,end_date)
+            SELECT id,date,amount,category,subcategory,note FROM expense WHERE date BETWEEN ? AND ? ORDER BY id ASC
+            """, (start_date, end_date)
         )
-        cols=[d[0] for d in c.description]
-        return [dict(zip(cols,r)) for r in c.fetchall()]
+        cols = [d[0] for d in curr.description]
+        return [dict(zip(cols, r)) for r in curr.fetchall()]
     
 @mcp.tool
-def summarize(start_date,end_date,category=None):
+def summarize(start_date, end_date, category=None):
     """Summerize expense list on teh basis of categiry on the basisi of start_date and end_date"""
     with sqlite3.connect(db_path) as c:
-        c=c.execute(
-            """
-            SELECT category ,SUM(amount) as TOTAL_AMOUNT FROM expense HWERE date BETWEEN ? AND ?
-            """
-        )
-        params=[start_date,end_date]
+        query = """
+            SELECT category, SUM(amount) as TOTAL_AMOUNT 
+            FROM expense 
+            WHERE date BETWEEN ? AND ?
+        """
+        params = [start_date, end_date]
         
         if category:
-            query+="AND category =?"
+            query += " AND category = ?"
             params.append(category)
-            query +="GROUP BY category ORDER BY category ASC"
-            c=c.execute(query,params)
-            cols=[d[0] for d in c.description]
-            return [dict(zip(cols,r)) for r in c.fetchall()]
+            
+        query += " GROUP BY category ORDER BY category ASC"
+        
+        curr = c.execute(query, params)
+        cols = [d[0] for d in curr.description]
+        return [dict(zip(cols, r)) for r in curr.fetchall()]
  
 @mcp.tool
 def add(a:float,b:float)->int:
