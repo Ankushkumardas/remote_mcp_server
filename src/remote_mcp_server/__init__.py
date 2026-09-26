@@ -3,10 +3,25 @@ from fastmcp import FastMCP
 import os
 import sqlite3
 
-# Use an environment variable for the DB path if provided,
-# otherwise default to a local file. This is crucial for deployments
-# where the code directory might be read-only.
-db_path = os.environ.get("DB_PATH", os.path.join(os.path.dirname(__file__), "expense.db"))
+import tempfile
+
+def get_db_path():
+    # Use environment variable if provided
+    if "DB_PATH" in os.environ:
+        return os.environ["DB_PATH"]
+        
+    # Try local directory
+    local_dir = os.path.dirname(__file__)
+    local_path = os.path.join(local_dir, "expense.db")
+    
+    # Check if local directory is writable (needed for creating journal files)
+    if os.access(local_dir, os.W_OK):
+        return local_path
+        
+    # Fallback to system temp directory for read-only environments (like Docker/serverless)
+    return os.path.join(tempfile.gettempdir(), "expense.db")
+
+db_path = get_db_path()
 
 mcp=FastMCP("ExpenceTracker")
 
